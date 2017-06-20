@@ -1,13 +1,12 @@
-import ethereum.pruning_trie as pruning_trie
 from ethereum.db import EphemDB
-from ethereum.refcount_db import RefcountDB
+from ethereum.experimental import pruning_trie
+from ethereum.experimental.refcount_db import RefcountDB
 import rlp
 import ethereum.utils as utils
 from ethereum.utils import to_string
 import sys
 import itertools
-import ethereum.testutils as testutils
-from ethereum.testutils import fixture_to_bytes
+from ethereum.tools import testutils
 import os
 import json
 
@@ -398,7 +397,7 @@ def load_tests():
                       "Make sure you did 'git submodule init'")
     expected_keys = set(['jeff', 'emptyValues', 'branchingTests', 'insert-middle-leaf'])
     assert set(fixture.keys()) == expected_keys, ("test data changed!", list(fixture.keys()))
-    return fixture_to_bytes(fixture)
+    return fixture
 
 
 def run_test(name):

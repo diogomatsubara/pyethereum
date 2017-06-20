@@ -1,6 +1,6 @@
 import os
 import pytest
-import ethereum.testutils as testutils
+from ethereum.tools import testutils
 
 fixtures = testutils.get_tests_from_file_or_dir(
     os.path.join(testutils.fixture_path, 'PoWTests'))
