@@ -5,10 +5,11 @@ import pytest
 
 from ethereum.utils import encode_hex
 
-from ethereum import tester
+from ethereum.tools import tester
 from ethereum import utils
-from ethereum import _solidity
-from ethereum._solidity import get_solidity
+from ethereum.tools._solidity import (
+    get_solidity, solidity_names, solidity_library_symbol,
+    solidity_resolve_address)
 
 SOLIDITY_AVAILABLE = get_solidity() is not None
 CONTRACTS_DIR = path.join(path.dirname(__file__), 'contracts')
@@ -80,7 +81,7 @@ def test_names():
     with open(path.join(CONTRACTS_DIR, 'contract_names.sol')) as handler:
         code = handler.read()
 
-    names_in_order = _solidity.solidity_names(code)
+    names_in_order = solidity_names(code)
 
     assert ('library', 'InComment') not in names_in_order
     assert ('contract', 'InComment') not in names_in_order
@@ -97,13 +98,13 @@ def test_names():
 
 
 def test_symbols():
-    assert _solidity.solidity_library_symbol('a') == '__a_____________________________________'
-    assert _solidity.solidity_library_symbol('aaa') == '__aaa___________________________________'
-    assert _solidity.solidity_library_symbol('a' * 40) == '__aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa__'
+    assert solidity_library_symbol('a') == '__a_____________________________________'
+    assert solidity_library_symbol('aaa') == '__aaa___________________________________'
+    assert solidity_library_symbol('a' * 40) == '__aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa__'
 
     # the address should be sanitized when it's given to the function
     with pytest.raises(Exception):
-        _solidity.solidity_resolve_address(
+        solidity_resolve_address(
             'beef__a_____________________________________cafe',
             '__a_____________________________________',
             '0x1111111111111111111111111111111111111111'
@@ -111,13 +112,13 @@ def test_symbols():
 
     # the address needs to be hex encoded
     with pytest.raises(Exception):
-        _solidity.solidity_resolve_address(
+        solidity_resolve_address(
             'beef__a_____________________________________cafe',
             '__a_____________________________________',
             '111111111111111111111111111111111111111_'
         )
 
-    assert _solidity.solidity_resolve_address(
+    assert solidity_resolve_address(
         'beef__a_____________________________________cafe',
         '__a_____________________________________',
         '1111111111111111111111111111111111111111'
@@ -272,6 +273,7 @@ def test_extra_args():
     assert bytecode_is_generated(contract_info, 'foo')
 
 def test_missing_solc(monkeypatch):
+    from ethereum.tools import _solidity
     monkeypatch.setattr(_solidity, 'get_compiler_path', lambda: None)
     assert _solidity.get_compiler_path() is None
     sample_sol_code = "contract SampleContract {}"
