@@ -1,8 +1,7 @@
-from ethereum import parse_genesis_declaration, db
 from ethereum.block import Block, BlockHeader
 from ethereum.config import Env
-import ethereum.state_transition as state_transition
-from ethereum import chain
+from ethereum import messages
+from ethereum.pow.chain import Chain
 import rlp
 import json
 import os
@@ -13,8 +12,8 @@ import time
 # config_string = ':info,eth.vm.log:trace,eth.vm.op:trace,eth.vm.stack:trace,eth.vm.exit:trace,eth.pb.msg:trace,eth.pb.tx:debug'
 # configure_logging(config_string=config_string)
 
-state_transition.SKIP_MEDSTATES = True
-state_transition.SKIP_RECEIPT_ROOT_VALIDATION = True
+messages.SKIP_MEDSTATES = True
+messages.SKIP_RECEIPT_ROOT_VALIDATION = True
 # assert not state_transition.SKIP_MEDSTATES or state_transition.SKIP_RECEIPT_ROOT_VALIDATION
 
 STATE_LOAD_FN = 'saved_state.json'
@@ -36,17 +35,17 @@ if '--benchmark' in sys.argv:
 _path, _file = os.path.split(STATE_LOAD_FN)
 if _file in os.listdir(os.path.join(os.getcwd(), _path)):
     print 'loading state from %s ...' % STATE_LOAD_FN
-    c = chain.Chain(json.load(open(STATE_LOAD_FN)), Env())
+    chain = Chain(json.load(open(STATE_LOAD_FN)), Env())
     print 'loaded.'
 elif 'genesis_frontier.json' not in os.listdir(os.getcwd()):
     print 'Please download genesis_frontier.json from ' + \
         'http://vitalik.ca/files/genesis_frontier.json'
     sys.exit()
 else:
-    c = chain.Chain(json.load(open('genesis_frontier.json')), Env())
-    assert c.state.trie.root_hash.encode('hex') == \
+    chain = Chain(json.load(open('genesis_frontier.json')), Env())
+    assert chain.state.trie.root_hash.encode('hex') == \
         'd7f8974fb5ac78d9ac099b9ad5018bedc2ce0a72dad1827a1709da30580f0544'
-    assert c.state.prev_headers[0].hash.encode('hex') == \
+    assert chain.state.prev_headers[0].hash.encode('hex') == \
         'd4e56740f876aef8c010b86a40d5f56745a118d0906a34e69aec8c0db1cb8fa3'
     print 'state generated from genesis'
 print 'Attempting to open %s' % RLP_BLOCKS_FILE
@@ -60,7 +59,7 @@ batch_size = 1024 * 10240  # approximately 10000 blocks
 f = open(RLP_BLOCKS_FILE)
 
 # skip already processed blocks
-skip = c.state.block_number + 1
+skip = chain.state.block_number + 1
 print 'Skipping %d' % skip
 count = 0
 block_rlps = f.readlines(batch_size)
@@ -86,10 +85,10 @@ def report(st, num_blks, num_txs, gas_used):
 
 def check_snapshot_consistency(snapshot, env=None):
     if env:
-        c = chain.Chain(env=env)
+        chain = Chain(env=env)
     else:
-        c = chain.Chain(snapshot, Env())
-    snapshot2 = c.state.to_snapshot()
+        chain = Chain(snapshot, Env())
+    snapshot2 = chain.state.to_snapshot()
     if snapshot != snapshot2:  # FIXME
         for i, ss in enumerate([snapshot, snapshot2]):
             fn = '/tmp/{}_{}'.format(STATE_STORE_FN, i)
@@ -97,13 +96,13 @@ def check_snapshot_consistency(snapshot, env=None):
         raise Exception("snapshot difference, see {}*".format(fn[:-1]))
 
 
-def snapshot(c, num_blocks):
+def snapshot(chain, num_blocks):
     print 'creating snapshot'
-    snapshot = c.state.to_snapshot()
+    snapshot = chain.state.to_snapshot()
     if (num_blocks / SAVE_INTERVAL) % 2 == 1:
         check_snapshot_consistency(snapshot, env=None)
     else:
-        check_snapshot_consistency(snapshot, env=c.env)
+        check_snapshot_consistency(snapshot, env=chain.env)
     # store checkpoint
     if num_blocks % SNAPSHOT_INTERVAL == 0:
         fn = STATE_SNAPSHOT_FN.format(num_blocks / 1000)
@@ -131,7 +130,7 @@ while len(block_rlps) > 0:
     for block in block_rlps:
         # print 'prevh:', s.prev_headers
         block = rlp.decode(block.strip().decode('hex'), Block)
-        assert c.add_block(block)
+        assert chain.add_block(block)
         num_blks += 1
         num_txs += len(block.transactions)
         gas_used += block.gas_used
@@ -149,7 +148,7 @@ while len(block_rlps) > 0:
                 num_txs = 0
                 gas_used = 0
             if num_blocks % SAVE_INTERVAL == 0 or num_blocks in MANUAL_SNAPSHOTS:
-                snapshot(c, num_blocks)
+                snapshot(chain, num_blocks)
                 st = time.time()
                 num_blks = 0
                 num_txs = 0
